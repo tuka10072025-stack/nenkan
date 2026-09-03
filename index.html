@@ -168,6 +168,40 @@
       font-weight: 700;
     }
 
+    .clipboard-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin: 0 0 12px;
+      border: 1px solid #cce7dd;
+      border-radius: 14px;
+      padding: 9px 11px;
+      color: #12634f;
+      background: #eff9f5;
+      font-size: .79rem;
+      font-weight: 800;
+    }
+
+    .clipboard-bar span {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .clipboard-clear {
+      flex: 0 0 auto;
+      width: 30px;
+      height: 30px;
+      border: 0;
+      border-radius: 9px;
+      color: #12634f;
+      background: rgba(18, 99, 79, .09);
+      font-weight: 900;
+      cursor: pointer;
+    }
+
     .month-jump {
       display: flex;
       gap: 7px;
@@ -257,11 +291,12 @@
     .month-tools {
       display: flex;
       justify-content: flex-end;
+      gap: 6px;
       min-height: 28px;
       margin-bottom: 4px;
     }
 
-    .month-add {
+    .month-add, .month-paste {
       display: inline-flex;
       align-items: center;
       gap: 4px;
@@ -274,6 +309,11 @@
       font-size: .78rem;
       font-weight: 800;
       cursor: pointer;
+    }
+
+    .month-paste {
+      background: #eef8f4;
+      color: #08775a;
     }
 
     .month-dropzone {
@@ -537,12 +577,17 @@
     }
 
     .month-chip {
+      min-width: 0;
       min-height: 42px;
       border: 1px solid #d6dce6;
       border-radius: 11px;
+      padding: 0 2px;
       background: white;
       color: #47546a;
+      font-size: .88rem;
       font-weight: 800;
+      letter-spacing: -.03em;
+      white-space: nowrap;
       cursor: pointer;
     }
 
@@ -616,7 +661,7 @@
       margin-top: 20px;
     }
 
-    .primary-button, .danger-button {
+    .primary-button, .danger-button, .secondary-button {
       min-height: 49px;
       border: 0;
       border-radius: 14px;
@@ -634,6 +679,19 @@
     .danger-button {
       color: #b42338;
       background: #fff0f1;
+    }
+
+    .secondary-button {
+      color: #17664f;
+      background: #eaf7f2;
+    }
+
+    .weekday-note {
+      margin-top: -9px;
+      margin-bottom: 17px;
+      color: var(--muted);
+      font-size: .73rem;
+      font-weight: 650;
     }
 
     .hint {
@@ -703,6 +761,11 @@
       <div class="summary-item"><span class="summary-number" id="doneCount">0</span><span class="summary-label">完了</span></div>
     </section>
 
+    <div class="clipboard-bar" id="clipboardBar" hidden>
+      <span id="clipboardText"></span>
+      <button class="clipboard-clear" id="clearClipboard" type="button" aria-label="コピーを解除">×</button>
+    </div>
+
     <nav class="month-jump" id="monthJump" aria-label="月へ移動"></nav>
     <section class="board" id="board" aria-label="12か月の予定"></section>
   </main>
@@ -738,6 +801,21 @@
           </div>
         </div>
 
+        <div class="field">
+          <label class="field-label" for="eventWeekday">曜日（任意）</label>
+          <select id="eventWeekday">
+            <option value="">未定</option>
+            <option value="月">月曜日</option>
+            <option value="火">火曜日</option>
+            <option value="水">水曜日</option>
+            <option value="木">木曜日</option>
+            <option value="金">金曜日</option>
+            <option value="土">土曜日</option>
+            <option value="日">日曜日</option>
+          </select>
+        </div>
+        <p class="weekday-note" id="weekdayNote">日付が未定でも、曜日だけ登録できます。</p>
+
         <fieldset class="field">
           <legend>色</legend>
           <div class="color-picker" id="colorPicker"></div>
@@ -755,6 +833,7 @@
 
         <div class="form-actions">
           <button class="danger-button" id="deleteButton" type="button" hidden>削除</button>
+          <button class="secondary-button" id="copyButton" type="button" hidden>コピー</button>
           <button class="primary-button" id="saveButton" type="submit">登録する</button>
         </div>
       </form>
@@ -770,6 +849,7 @@
       const STORAGE_KEY = 'annualPuzzleBoard_v1';
       const COLORS = ['#356ae6', '#00a278', '#f08a24', '#7c55d9', '#dd4965', '#1f95b8'];
       const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
+      const WEEKDAYS = ['日', '月', '火', '水', '木', '金', '土'];
       const now = new Date();
 
       const els = {
@@ -789,11 +869,17 @@
         editDateFields: document.getElementById('editDateFields'),
         editMonth: document.getElementById('editMonth'),
         eventDay: document.getElementById('eventDay'),
+        eventWeekday: document.getElementById('eventWeekday'),
+        weekdayNote: document.getElementById('weekdayNote'),
         colorPicker: document.getElementById('colorPicker'),
         doneRow: document.getElementById('doneRow'),
         eventDone: document.getElementById('eventDone'),
         deleteButton: document.getElementById('deleteButton'),
+        copyButton: document.getElementById('copyButton'),
         saveButton: document.getElementById('saveButton'),
+        clipboardBar: document.getElementById('clipboardBar'),
+        clipboardText: document.getElementById('clipboardText'),
+        clearClipboard: document.getElementById('clearClipboard'),
         toast: document.getElementById('toast')
       };
 
@@ -802,6 +888,7 @@
       let editingId = null;
       let selectedMonths = new Set();
       let selectedColor = COLORS[0];
+      let selectedWeekday = '';
       let drag = null;
       let suppressClickUntil = 0;
       let toastTimer = null;
@@ -830,11 +917,14 @@
           const raw = localStorage.getItem(STORAGE_KEY);
           if (raw) {
             const parsed = JSON.parse(raw);
-            if (Array.isArray(parsed.events)) return parsed;
+            if (Array.isArray(parsed.events)) {
+              parsed.clipboard ??= null;
+              return parsed;
+            }
           }
         } catch (_) {}
         const year = now.getFullYear();
-        return { viewYear: year, events: makeSamples(year) };
+        return { viewYear: year, events: makeSamples(year), clipboard: null };
       }
 
       function saveState() {
@@ -852,6 +942,10 @@
         return new Date(year, month, 0).getDate();
       }
 
+      function weekdayForDate(year, month, day) {
+        return WEEKDAYS[new Date(year, month - 1, day).getDay()];
+      }
+
       function monthEvents(month) {
         return state.events
           .filter(item => item.year === viewYear && item.month === month)
@@ -864,6 +958,11 @@
         els.totalCount.textContent = yearly.length;
         els.datedCount.textContent = yearly.filter(item => item.day).length;
         els.doneCount.textContent = yearly.filter(item => item.done).length;
+
+        els.clipboardBar.hidden = !state.clipboard;
+        els.clipboardText.textContent = state.clipboard
+          ? `「${state.clipboard.title}」をコピー中 — 月の「貼り付け」を押してください`
+          : '';
 
         els.monthJump.innerHTML = MONTHS.map(month =>
           `<button type="button" data-jump="${month}" aria-label="${month}月へ移動">${month}月</button>`
@@ -880,6 +979,7 @@
               </div>
               <div class="month-content">
                 <div class="month-tools">
+                  ${state.clipboard ? `<button class="month-paste" type="button" data-paste-month="${month}" aria-label="${month}月にコピーした予定を貼り付け">貼り付け</button>` : ''}
                   <button class="month-add" type="button" data-add-month="${month}" aria-label="${month}月に予定を追加">＋ 追加</button>
                 </div>
                 <div class="month-dropzone" data-drop-month="${month}">
@@ -892,8 +992,10 @@
 
       function eventCardHtml(item) {
         const date = item.day
-          ? `<span class="date-number">${item.day}</span><span class="date-unit">日</span>`
-          : '<span class="date-undecided">日付<br>未定</span>';
+          ? `<span class="date-number">${item.day}</span><span class="date-unit">${weekdayForDate(item.year, item.month, item.day)}曜</span>`
+          : item.weekday
+            ? `<span class="date-undecided">${escapeHtml(item.weekday)}曜</span>`
+            : '<span class="date-undecided">日付<br>未定</span>';
         const meta = item.done ? '✓ 完了' : (item.memo || 'タップして日付を決める');
         return `
           <div class="event-card${item.done ? ' is-done' : ''}" data-event-id="${item.id}" style="--event:${item.color}" role="button" tabindex="0" aria-label="${escapeHtml(item.title)}を編集">
@@ -930,10 +1032,25 @@
         }).join('');
       }
 
+      function updateWeekdayControl() {
+        const day = Number(els.eventDay.value);
+        if (editingId && day) {
+          const weekday = weekdayForDate(viewYear, Number(els.editMonth.value), day);
+          els.eventWeekday.value = weekday;
+          els.eventWeekday.disabled = true;
+          els.weekdayNote.textContent = `選んだ日付から「${weekday}曜日」を自動表示します。`;
+          return;
+        }
+        els.eventWeekday.disabled = false;
+        els.eventWeekday.value = selectedWeekday;
+        els.weekdayNote.textContent = '日付が未定でも、曜日だけ登録できます。';
+      }
+
       function openAdd(month = null) {
         editingId = null;
         selectedMonths = new Set(month ? [month] : []);
         selectedColor = COLORS[0];
+        selectedWeekday = '';
         els.form.reset();
         els.modalTitle.textContent = '予定を追加';
         els.saveButton.textContent = '登録する';
@@ -941,7 +1058,9 @@
         els.editDateFields.hidden = true;
         els.doneRow.hidden = true;
         els.deleteButton.hidden = true;
+        els.copyButton.hidden = true;
         renderPickers();
+        updateWeekdayControl();
         showModal();
       }
 
@@ -951,6 +1070,8 @@
         if (!item) return;
         editingId = id;
         selectedColor = item.color;
+        selectedWeekday = item.weekday || '';
+        els.form.reset();
         els.modalTitle.textContent = '予定を編集';
         els.saveButton.textContent = '変更を保存';
         els.eventName.value = item.title;
@@ -960,9 +1081,11 @@
         els.editDateFields.hidden = false;
         els.doneRow.hidden = false;
         els.deleteButton.hidden = false;
+        els.copyButton.hidden = false;
         fillEditMonthOptions(item.month);
         fillDayOptions(item.month, item.day);
         renderPickers();
+        updateWeekdayControl();
         showModal();
       }
 
@@ -1000,6 +1123,7 @@
           item.color = selectedColor;
           item.month = Number(els.editMonth.value);
           item.day = els.eventDay.value ? Number(els.eventDay.value) : null;
+          item.weekday = item.day ? null : (selectedWeekday || null);
           item.done = els.eventDone.checked;
           if (oldMonth !== item.month) {
             item.order = monthEvents(item.month).length;
@@ -1021,7 +1145,7 @@
         [...selectedMonths].sort((a, b) => a - b).forEach(month => {
           state.events.push({
             id: uid(), group, year: viewYear, month, day: null,
-            title, color: selectedColor, memo, done: false,
+            title, color: selectedColor, memo, weekday: selectedWeekday || null, done: false,
             order: monthEvents(month).length
           });
         });
@@ -1041,6 +1165,55 @@
         closeModal();
         render();
         showToast('予定を削除しました');
+      }
+
+      function copyEditingEvent() {
+        const item = state.events.find(entry => entry.id === editingId);
+        if (!item) return;
+        const title = els.eventName.value.trim() || item.title;
+        const day = els.eventDay.value ? Number(els.eventDay.value) : null;
+        state.clipboard = {
+          title,
+          color: selectedColor,
+          memo: els.eventMemo.value.trim(),
+          day,
+          weekday: day ? null : (selectedWeekday || null)
+        };
+        saveState();
+        closeModal();
+        render();
+        showToast(`「${title}」をコピーしました`);
+      }
+
+      function pasteEvent(month) {
+        const copied = state.clipboard;
+        if (!copied) return;
+        const copiedDay = Number(copied.day) || null;
+        const dayFits = !copiedDay || copiedDay <= daysInMonth(viewYear, month);
+        const day = dayFits ? copiedDay : null;
+        state.events.push({
+          id: uid(),
+          group: uid(),
+          year: viewYear,
+          month,
+          day,
+          weekday: day ? null : (copied.weekday || null),
+          title: copied.title,
+          color: copied.color || COLORS[0],
+          memo: copied.memo || '',
+          done: false,
+          order: monthEvents(month).length
+        });
+        saveState();
+        render();
+        showToast(dayFits ? `${month}月に貼り付けました` : `${month}月に貼り付け、日付は未定にしました`);
+      }
+
+      function clearClipboard() {
+        state.clipboard = null;
+        saveState();
+        render();
+        showToast('コピーを解除しました');
       }
 
       function showToast(message) {
@@ -1175,6 +1348,9 @@
         const monthAdd = event.target.closest('[data-add-month]');
         if (monthAdd) openAdd(Number(monthAdd.dataset.addMonth));
 
+        const monthPaste = event.target.closest('[data-paste-month]');
+        if (monthPaste) pasteEvent(Number(monthPaste.dataset.pasteMonth));
+
         const picker = event.target.closest('[data-pick-month]');
         if (picker) {
           const month = Number(picker.dataset.pickMonth);
@@ -1206,7 +1382,14 @@
       els.modal.addEventListener('click', event => { if (event.target === els.modal) closeModal(); });
       els.form.addEventListener('submit', submitEvent);
       els.deleteButton.addEventListener('click', deleteEditingEvent);
-      els.editMonth.addEventListener('change', () => fillDayOptions(Number(els.editMonth.value), Number(els.eventDay.value)));
+      els.copyButton.addEventListener('click', copyEditingEvent);
+      els.clearClipboard.addEventListener('click', clearClipboard);
+      els.eventWeekday.addEventListener('change', () => { selectedWeekday = els.eventWeekday.value; });
+      els.eventDay.addEventListener('change', updateWeekdayControl);
+      els.editMonth.addEventListener('change', () => {
+        fillDayOptions(Number(els.editMonth.value), Number(els.eventDay.value));
+        updateWeekdayControl();
+      });
 
       document.getElementById('prevYear').addEventListener('click', () => {
         viewYear -= 1;
