@@ -1,0 +1,1219 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#16233f">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>年間予定ボード</title>
+  <meta name="description" content="年間予定を色付きカードで月ごとに組み立てる、ドラッグ＆ドロップ対応の予定ボード。">
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #16233f;
+      --muted: #68748a;
+      --line: #dde3ec;
+      --paper: #f3f6fa;
+      --card: #ffffff;
+      --blue: #356ae6;
+      --shadow: 0 8px 28px rgba(22, 35, 63, .09);
+      --radius: 20px;
+    }
+
+    * { box-sizing: border-box; }
+
+    html {
+      scroll-behavior: smooth;
+      background: var(--paper);
+    }
+
+    body {
+      margin: 0;
+      min-width: 320px;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic UI", "Yu Gothic", sans-serif;
+      font-size: 16px;
+      line-height: 1.45;
+      -webkit-font-smoothing: antialiased;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    button, input, select, textarea { font: inherit; }
+    button { -webkit-tap-highlight-color: transparent; }
+
+    .appbar {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      color: white;
+      background:
+        radial-gradient(circle at 88% -20%, rgba(84, 130, 255, .58), transparent 42%),
+        linear-gradient(145deg, #121d35, #1e3158);
+      box-shadow: 0 8px 24px rgba(11, 24, 50, .19);
+      padding: max(14px, env(safe-area-inset-top)) 16px 13px;
+    }
+
+    .appbar-inner {
+      width: min(1180px, 100%);
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .brand-kicker {
+      margin: 0 0 1px;
+      color: #b9c9ed;
+      font-size: .75rem;
+      font-weight: 800;
+      letter-spacing: .15em;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(1.22rem, 4.8vw, 1.65rem);
+      line-height: 1.2;
+      letter-spacing: .02em;
+    }
+
+    .header-add {
+      display: inline-grid;
+      place-items: center;
+      width: 44px;
+      height: 44px;
+      border: 0;
+      border-radius: 14px;
+      background: white;
+      color: var(--ink);
+      font-size: 1.7rem;
+      line-height: 1;
+      box-shadow: 0 6px 16px rgba(0, 0, 0, .16);
+      cursor: pointer;
+    }
+
+    .year-row {
+      width: min(1180px, 100%);
+      margin: 13px auto 0;
+      display: grid;
+      grid-template-columns: 44px 1fr 44px;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .year-row button {
+      width: 40px;
+      height: 36px;
+      border: 1px solid rgba(255, 255, 255, .22);
+      border-radius: 12px;
+      color: white;
+      background: rgba(255, 255, 255, .09);
+      cursor: pointer;
+    }
+
+    .year-title {
+      text-align: center;
+      font-size: 1.04rem;
+      font-weight: 800;
+      letter-spacing: .06em;
+    }
+
+    main {
+      width: min(1180px, 100%);
+      margin: 0 auto;
+      padding: 18px 14px calc(96px + env(safe-area-inset-bottom));
+    }
+
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    .summary-item {
+      min-width: 0;
+      padding: 12px 10px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: white;
+      box-shadow: 0 4px 15px rgba(22, 35, 63, .04);
+      text-align: center;
+    }
+
+    .summary-number {
+      display: block;
+      font-size: 1.25rem;
+      font-weight: 900;
+      line-height: 1.15;
+    }
+
+    .summary-label {
+      display: block;
+      margin-top: 2px;
+      color: var(--muted);
+      font-size: .74rem;
+      font-weight: 700;
+    }
+
+    .month-jump {
+      display: flex;
+      gap: 7px;
+      overflow-x: auto;
+      margin: 0 -14px 16px;
+      padding: 0 14px 4px;
+      scrollbar-width: none;
+    }
+
+    .month-jump::-webkit-scrollbar { display: none; }
+
+    .month-jump button {
+      flex: 0 0 42px;
+      height: 38px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: white;
+      color: var(--ink);
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .board {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 13px;
+    }
+
+    .month-panel {
+      position: relative;
+      display: grid;
+      grid-template-columns: 64px minmax(0, 1fr);
+      min-height: 126px;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--card);
+      box-shadow: var(--shadow);
+      scroll-margin-top: 145px;
+      transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease;
+    }
+
+    .month-panel.drop-active {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px rgba(53, 106, 230, .16), var(--shadow);
+      transform: scale(1.006);
+    }
+
+    .month-rail {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      padding: 17px 5px;
+      color: white;
+      background: linear-gradient(165deg, #16233f, #263f70);
+    }
+
+    .month-number {
+      font-size: 1.72rem;
+      font-weight: 900;
+      line-height: 1;
+      letter-spacing: -.04em;
+    }
+
+    .month-unit {
+      color: #c5d2ee;
+      font-size: .72rem;
+      font-weight: 800;
+    }
+
+    .month-count {
+      margin-top: 8px;
+      padding: 2px 7px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, .12);
+      color: #dfe8fb;
+      font-size: .68rem;
+      font-weight: 800;
+    }
+
+    .month-content {
+      min-width: 0;
+      padding: 11px;
+    }
+
+    .month-tools {
+      display: flex;
+      justify-content: flex-end;
+      min-height: 28px;
+      margin-bottom: 4px;
+    }
+
+    .month-add {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      min-height: 30px;
+      border: 0;
+      border-radius: 10px;
+      padding: 4px 8px;
+      background: #edf2ff;
+      color: #2857bd;
+      font-size: .78rem;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .month-dropzone {
+      min-height: 59px;
+      border-radius: 12px;
+    }
+
+    .empty-month {
+      display: grid;
+      place-items: center;
+      min-height: 58px;
+      border: 1.5px dashed #d8dfeb;
+      border-radius: 12px;
+      color: #9aa5b7;
+      font-size: .82rem;
+      font-weight: 700;
+      pointer-events: none;
+    }
+
+    .event-card {
+      --event: #356ae6;
+      position: relative;
+      display: grid;
+      grid-template-columns: 50px minmax(0, 1fr) 34px;
+      align-items: stretch;
+      min-height: 60px;
+      overflow: hidden;
+      border: 1px solid #e1e6ef;
+      border-left: 5px solid var(--event);
+      border-radius: 13px;
+      background: #fff;
+      box-shadow: 0 3px 10px rgba(22, 35, 63, .06);
+      cursor: pointer;
+      user-select: none;
+      -webkit-user-select: none;
+      transition: transform .16s ease, box-shadow .16s ease, opacity .16s ease;
+    }
+
+    .event-card + .event-card { margin-top: 8px; }
+    .event-card:active { transform: scale(.992); }
+    .event-card.drag-source { opacity: .22; }
+
+    .event-card.is-done {
+      opacity: .63;
+      background: #f7f8fa;
+    }
+
+    .event-card.is-done .event-name { text-decoration: line-through; }
+
+    .date-badge {
+      display: grid;
+      place-content: center;
+      min-width: 0;
+      padding: 6px 4px;
+      color: var(--event);
+      background: color-mix(in srgb, var(--event) 10%, white);
+      text-align: center;
+    }
+
+    .date-number {
+      font-size: 1.13rem;
+      font-weight: 900;
+      line-height: 1;
+    }
+
+    .date-unit {
+      margin-top: 2px;
+      font-size: .63rem;
+      font-weight: 800;
+    }
+
+    .date-undecided {
+      font-size: .72rem;
+      font-weight: 900;
+      line-height: 1.15;
+    }
+
+    .event-copy {
+      min-width: 0;
+      align-self: center;
+      padding: 8px 9px;
+    }
+
+    .event-name {
+      overflow: hidden;
+      color: #1c2943;
+      font-weight: 850;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .event-meta {
+      overflow: hidden;
+      margin-top: 2px;
+      color: var(--muted);
+      font-size: .72rem;
+      font-weight: 650;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .drag-handle {
+      display: grid;
+      place-items: center;
+      width: 34px;
+      border: 0;
+      border-left: 1px solid #edf0f5;
+      background: transparent;
+      color: #8c97a9;
+      font-size: 1.22rem;
+      letter-spacing: -4px;
+      touch-action: none;
+      cursor: grab;
+    }
+
+    .drag-handle:active { cursor: grabbing; }
+
+    .drop-marker {
+      height: 5px;
+      margin: 5px 4px;
+      border-radius: 999px;
+      background: var(--blue);
+      box-shadow: 0 0 0 3px rgba(53, 106, 230, .13);
+      pointer-events: none;
+    }
+
+    .drag-ghost {
+      position: fixed;
+      z-index: 200;
+      width: min(300px, calc(100vw - 36px));
+      margin: 0 !important;
+      pointer-events: none;
+      transform: rotate(1.7deg) scale(1.03);
+      opacity: .97;
+      box-shadow: 0 18px 42px rgba(14, 28, 58, .26);
+    }
+
+    .floating-add {
+      position: fixed;
+      right: max(18px, env(safe-area-inset-right));
+      bottom: calc(18px + env(safe-area-inset-bottom));
+      z-index: 45;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      height: 52px;
+      border: 0;
+      border-radius: 17px;
+      padding: 0 18px;
+      color: white;
+      background: #285dcc;
+      box-shadow: 0 10px 28px rgba(40, 93, 204, .32);
+      font-weight: 850;
+      cursor: pointer;
+    }
+
+    .floating-add span:first-child { font-size: 1.45rem; }
+
+    .modal {
+      position: fixed;
+      inset: 0;
+      z-index: 300;
+      display: none;
+      align-items: flex-end;
+      justify-content: center;
+      padding: 18px;
+      background: rgba(9, 17, 34, .56);
+      backdrop-filter: blur(5px);
+      -webkit-backdrop-filter: blur(5px);
+    }
+
+    .modal.open { display: flex; }
+
+    .sheet {
+      width: min(560px, 100%);
+      max-height: min(86vh, 760px);
+      overflow-y: auto;
+      border-radius: 24px 24px 18px 18px;
+      background: white;
+      box-shadow: 0 24px 70px rgba(6, 15, 32, .3);
+      animation: sheet-in .2s ease-out;
+      overscroll-behavior: contain;
+    }
+
+    @keyframes sheet-in {
+      from { transform: translateY(24px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    .sheet-head {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 18px 18px 13px;
+      border-bottom: 1px solid #edf0f5;
+      background: rgba(255, 255, 255, .96);
+    }
+
+    .sheet-head h2 {
+      margin: 0;
+      font-size: 1.2rem;
+    }
+
+    .close-button {
+      width: 38px;
+      height: 38px;
+      border: 0;
+      border-radius: 12px;
+      background: #eef1f6;
+      color: #4c596f;
+      font-size: 1.28rem;
+      cursor: pointer;
+    }
+
+    .form-body { padding: 17px 18px 20px; }
+
+    .field { margin-bottom: 17px; }
+
+    .field-label, .field legend {
+      display: block;
+      margin-bottom: 7px;
+      padding: 0;
+      color: #263551;
+      font-size: .88rem;
+      font-weight: 850;
+    }
+
+    .field input[type="text"],
+    .field select,
+    .field textarea {
+      width: 100%;
+      min-height: 48px;
+      border: 1px solid #ccd4e0;
+      border-radius: 13px;
+      padding: 11px 12px;
+      color: var(--ink);
+      background: white;
+      outline: none;
+    }
+
+    .field textarea {
+      min-height: 88px;
+      resize: vertical;
+    }
+
+    .field input:focus, .field select:focus, .field textarea:focus {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px rgba(53, 106, 230, .13);
+    }
+
+    fieldset.field { border: 0; padding: 0; }
+
+    .month-picker {
+      display: grid;
+      grid-template-columns: repeat(6, 1fr);
+      gap: 7px;
+    }
+
+    .month-chip {
+      min-height: 42px;
+      border: 1px solid #d6dce6;
+      border-radius: 11px;
+      background: white;
+      color: #47546a;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .month-chip.selected {
+      border-color: #285dcc;
+      color: white;
+      background: #285dcc;
+      box-shadow: 0 5px 12px rgba(40, 93, 204, .2);
+    }
+
+    .color-picker {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .color-swatch {
+      position: relative;
+      width: 42px;
+      height: 42px;
+      border: 3px solid white;
+      border-radius: 50%;
+      background: var(--swatch);
+      box-shadow: 0 0 0 1px #cfd6e2;
+      cursor: pointer;
+    }
+
+    .color-swatch.selected {
+      box-shadow: 0 0 0 3px var(--ink);
+    }
+
+    .color-swatch.selected::after {
+      content: "✓";
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      color: white;
+      font-weight: 900;
+      text-shadow: 0 1px 3px rgba(0, 0, 0, .32);
+    }
+
+    .edit-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .done-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      min-height: 52px;
+      border: 1px solid #d9e0ea;
+      border-radius: 14px;
+      padding: 10px 13px;
+      color: #263551;
+      font-weight: 800;
+    }
+
+    .done-row input {
+      width: 24px;
+      height: 24px;
+      accent-color: #285dcc;
+    }
+
+    .form-actions {
+      display: flex;
+      gap: 9px;
+      margin-top: 20px;
+    }
+
+    .primary-button, .danger-button {
+      min-height: 49px;
+      border: 0;
+      border-radius: 14px;
+      padding: 10px 16px;
+      font-weight: 850;
+      cursor: pointer;
+    }
+
+    .primary-button {
+      flex: 1;
+      color: white;
+      background: #285dcc;
+    }
+
+    .danger-button {
+      color: #b42338;
+      background: #fff0f1;
+    }
+
+    .hint {
+      margin: 3px 0 0;
+      color: var(--muted);
+      font-size: .76rem;
+    }
+
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: calc(82px + env(safe-area-inset-bottom));
+      z-index: 500;
+      max-width: calc(100vw - 32px);
+      padding: 11px 16px;
+      border-radius: 999px;
+      color: white;
+      background: rgba(17, 30, 55, .95);
+      box-shadow: 0 10px 28px rgba(10, 20, 40, .24);
+      font-size: .86rem;
+      font-weight: 800;
+      opacity: 0;
+      pointer-events: none;
+      transform: translate(-50%, 12px);
+      transition: opacity .18s ease, transform .18s ease;
+    }
+
+    .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+    @media (min-width: 720px) {
+      .board { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .modal { align-items: center; }
+      .sheet { border-radius: 24px; }
+      .floating-add { right: 28px; bottom: 28px; }
+    }
+
+    @media (min-width: 1080px) {
+      .board { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <header class="appbar">
+    <div class="appbar-inner">
+      <div>
+        <p class="brand-kicker">YEAR BOARD</p>
+        <h1>年間予定ボード</h1>
+      </div>
+      <button class="header-add" id="headerAdd" type="button" aria-label="予定を追加">＋</button>
+    </div>
+    <div class="year-row" aria-label="表示する年">
+      <button id="prevYear" type="button" aria-label="前年を表示">‹</button>
+      <div class="year-title"><span id="yearText"></span>年</div>
+      <button id="nextYear" type="button" aria-label="翌年を表示">›</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="summary" aria-label="予定の集計">
+      <div class="summary-item"><span class="summary-number" id="totalCount">0</span><span class="summary-label">予定</span></div>
+      <div class="summary-item"><span class="summary-number" id="datedCount">0</span><span class="summary-label">日付確定</span></div>
+      <div class="summary-item"><span class="summary-number" id="doneCount">0</span><span class="summary-label">完了</span></div>
+    </section>
+
+    <nav class="month-jump" id="monthJump" aria-label="月へ移動"></nav>
+    <section class="board" id="board" aria-label="12か月の予定"></section>
+  </main>
+
+  <button class="floating-add" id="floatingAdd" type="button"><span>＋</span><span>予定を追加</span></button>
+
+  <div class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="sheet">
+      <div class="sheet-head">
+        <h2 id="modalTitle">予定を追加</h2>
+        <button class="close-button" id="closeModal" type="button" aria-label="閉じる">×</button>
+      </div>
+      <form id="eventForm" class="form-body">
+        <div class="field">
+          <label class="field-label" for="eventName">予定名</label>
+          <input id="eventName" type="text" maxlength="50" autocomplete="off" placeholder="例：消防設備点検" required>
+        </div>
+
+        <fieldset class="field" id="addMonthField">
+          <legend>実施する月（複数選択できます）</legend>
+          <div class="month-picker" id="monthPicker"></div>
+          <p class="hint">登録後もカードをつかんで別の月へ動かせます。</p>
+        </fieldset>
+
+        <div class="edit-grid" id="editDateFields" hidden>
+          <div class="field">
+            <label class="field-label" for="editMonth">月</label>
+            <select id="editMonth"></select>
+          </div>
+          <div class="field">
+            <label class="field-label" for="eventDay">日付</label>
+            <select id="eventDay"></select>
+          </div>
+        </div>
+
+        <fieldset class="field">
+          <legend>色</legend>
+          <div class="color-picker" id="colorPicker"></div>
+        </fieldset>
+
+        <div class="field">
+          <label class="field-label" for="eventMemo">メモ（任意）</label>
+          <textarea id="eventMemo" maxlength="160" placeholder="決まっていることを短くメモ"></textarea>
+        </div>
+
+        <label class="done-row" id="doneRow" hidden>
+          <span>この予定を完了にする</span>
+          <input id="eventDone" type="checkbox">
+        </label>
+
+        <div class="form-actions">
+          <button class="danger-button" id="deleteButton" type="button" hidden>削除</button>
+          <button class="primary-button" id="saveButton" type="submit">登録する</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    (() => {
+      'use strict';
+
+      const STORAGE_KEY = 'annualPuzzleBoard_v1';
+      const COLORS = ['#356ae6', '#00a278', '#f08a24', '#7c55d9', '#dd4965', '#1f95b8'];
+      const MONTHS = Array.from({ length: 12 }, (_, i) => i + 1);
+      const now = new Date();
+
+      const els = {
+        board: document.getElementById('board'),
+        monthJump: document.getElementById('monthJump'),
+        yearText: document.getElementById('yearText'),
+        totalCount: document.getElementById('totalCount'),
+        datedCount: document.getElementById('datedCount'),
+        doneCount: document.getElementById('doneCount'),
+        modal: document.getElementById('modal'),
+        form: document.getElementById('eventForm'),
+        modalTitle: document.getElementById('modalTitle'),
+        eventName: document.getElementById('eventName'),
+        eventMemo: document.getElementById('eventMemo'),
+        monthPicker: document.getElementById('monthPicker'),
+        addMonthField: document.getElementById('addMonthField'),
+        editDateFields: document.getElementById('editDateFields'),
+        editMonth: document.getElementById('editMonth'),
+        eventDay: document.getElementById('eventDay'),
+        colorPicker: document.getElementById('colorPicker'),
+        doneRow: document.getElementById('doneRow'),
+        eventDone: document.getElementById('eventDone'),
+        deleteButton: document.getElementById('deleteButton'),
+        saveButton: document.getElementById('saveButton'),
+        toast: document.getElementById('toast')
+      };
+
+      let state = loadState();
+      let viewYear = state.viewYear || now.getFullYear();
+      let editingId = null;
+      let selectedMonths = new Set();
+      let selectedColor = COLORS[0];
+      let drag = null;
+      let suppressClickUntil = 0;
+      let toastTimer = null;
+
+      function uid() {
+        return globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      }
+
+      function makeSamples(year) {
+        const group = uid();
+        return [
+          { id: uid(), group, year, month: 1, day: 15, title: 'フィルター清掃', color: COLORS[2], memo: '四半期ごとの清掃', done: true, order: 0 },
+          { id: uid(), group, year, month: 4, day: null, title: 'フィルター清掃', color: COLORS[2], memo: '四半期ごとの清掃', done: false, order: 0 },
+          { id: uid(), group, year, month: 7, day: null, title: 'フィルター清掃', color: COLORS[2], memo: '四半期ごとの清掃', done: false, order: 0 },
+          { id: uid(), group, year, month: 10, day: null, title: 'フィルター清掃', color: COLORS[2], memo: '四半期ごとの清掃', done: false, order: 0 },
+          { id: uid(), group: uid(), year, month: 4, day: 18, title: '消防設備点検', color: COLORS[0], memo: '立ち会い時間を確認', done: true, order: 1 },
+          { id: uid(), group: uid(), year, month: 6, day: 12, title: '健康診断', color: COLORS[1], memo: '予約票を持参', done: false, order: 0 },
+          { id: uid(), group: uid(), year, month: 10, day: null, title: '消防設備点検', color: COLORS[0], memo: '日付は後で確定', done: false, order: 1 },
+          { id: uid(), group: uid(), year, month: 11, day: null, title: '資格更新', color: COLORS[3], memo: '期限を確認する', done: false, order: 0 },
+          { id: uid(), group: uid(), year, month: 12, day: null, title: '大掃除', color: COLORS[4], memo: '', done: false, order: 0 }
+        ];
+      }
+
+      function loadState() {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed.events)) return parsed;
+          }
+        } catch (_) {}
+        const year = now.getFullYear();
+        return { viewYear: year, events: makeSamples(year) };
+      }
+
+      function saveState() {
+        state.viewYear = viewYear;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+      }
+
+      function escapeHtml(value) {
+        return String(value ?? '').replace(/[&<>'"]/g, char => ({
+          '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;'
+        })[char]);
+      }
+
+      function daysInMonth(year, month) {
+        return new Date(year, month, 0).getDate();
+      }
+
+      function monthEvents(month) {
+        return state.events
+          .filter(item => item.year === viewYear && item.month === month)
+          .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+      }
+
+      function render() {
+        els.yearText.textContent = viewYear;
+        const yearly = state.events.filter(item => item.year === viewYear);
+        els.totalCount.textContent = yearly.length;
+        els.datedCount.textContent = yearly.filter(item => item.day).length;
+        els.doneCount.textContent = yearly.filter(item => item.done).length;
+
+        els.monthJump.innerHTML = MONTHS.map(month =>
+          `<button type="button" data-jump="${month}" aria-label="${month}月へ移動">${month}月</button>`
+        ).join('');
+
+        els.board.innerHTML = MONTHS.map(month => {
+          const items = monthEvents(month);
+          return `
+            <article class="month-panel" id="month-${month}" data-month-panel="${month}">
+              <div class="month-rail">
+                <span class="month-number">${month}</span>
+                <span class="month-unit">MONTH</span>
+                <span class="month-count">${items.length}件</span>
+              </div>
+              <div class="month-content">
+                <div class="month-tools">
+                  <button class="month-add" type="button" data-add-month="${month}" aria-label="${month}月に予定を追加">＋ 追加</button>
+                </div>
+                <div class="month-dropzone" data-drop-month="${month}">
+                  ${items.length ? items.map(eventCardHtml).join('') : '<div class="empty-month">ここに予定を置く</div>'}
+                </div>
+              </div>
+            </article>`;
+        }).join('');
+      }
+
+      function eventCardHtml(item) {
+        const date = item.day
+          ? `<span class="date-number">${item.day}</span><span class="date-unit">日</span>`
+          : '<span class="date-undecided">日付<br>未定</span>';
+        const meta = item.done ? '✓ 完了' : (item.memo || 'タップして日付を決める');
+        return `
+          <div class="event-card${item.done ? ' is-done' : ''}" data-event-id="${item.id}" style="--event:${item.color}" role="button" tabindex="0" aria-label="${escapeHtml(item.title)}を編集">
+            <div class="date-badge">${date}</div>
+            <div class="event-copy">
+              <div class="event-name">${escapeHtml(item.title)}</div>
+              <div class="event-meta">${escapeHtml(meta)}</div>
+            </div>
+            <button class="drag-handle" type="button" data-drag-id="${item.id}" aria-label="${escapeHtml(item.title)}を移動">⠿</button>
+          </div>`;
+      }
+
+      function renderPickers() {
+        els.monthPicker.innerHTML = MONTHS.map(month =>
+          `<button class="month-chip${selectedMonths.has(month) ? ' selected' : ''}" type="button" data-pick-month="${month}" aria-pressed="${selectedMonths.has(month)}">${month}月</button>`
+        ).join('');
+        els.colorPicker.innerHTML = COLORS.map(color =>
+          `<button class="color-swatch${selectedColor === color ? ' selected' : ''}" style="--swatch:${color}" type="button" data-color="${color}" aria-label="色を選択" aria-pressed="${selectedColor === color}"></button>`
+        ).join('');
+      }
+
+      function fillEditMonthOptions(selected) {
+        els.editMonth.innerHTML = MONTHS.map(month =>
+          `<option value="${month}"${month === selected ? ' selected' : ''}>${month}月</option>`
+        ).join('');
+      }
+
+      function fillDayOptions(month, selected) {
+        const count = daysInMonth(viewYear, month);
+        const safeSelected = selected && selected <= count ? selected : '';
+        els.eventDay.innerHTML = '<option value="">未定</option>' + Array.from({ length: count }, (_, i) => {
+          const day = i + 1;
+          return `<option value="${day}"${day === safeSelected ? ' selected' : ''}>${day}日</option>`;
+        }).join('');
+      }
+
+      function openAdd(month = null) {
+        editingId = null;
+        selectedMonths = new Set(month ? [month] : []);
+        selectedColor = COLORS[0];
+        els.form.reset();
+        els.modalTitle.textContent = '予定を追加';
+        els.saveButton.textContent = '登録する';
+        els.addMonthField.hidden = false;
+        els.editDateFields.hidden = true;
+        els.doneRow.hidden = true;
+        els.deleteButton.hidden = true;
+        renderPickers();
+        showModal();
+      }
+
+      function openEdit(id) {
+        if (Date.now() < suppressClickUntil) return;
+        const item = state.events.find(event => event.id === id);
+        if (!item) return;
+        editingId = id;
+        selectedColor = item.color;
+        els.modalTitle.textContent = '予定を編集';
+        els.saveButton.textContent = '変更を保存';
+        els.eventName.value = item.title;
+        els.eventMemo.value = item.memo || '';
+        els.eventDone.checked = Boolean(item.done);
+        els.addMonthField.hidden = true;
+        els.editDateFields.hidden = false;
+        els.doneRow.hidden = false;
+        els.deleteButton.hidden = false;
+        fillEditMonthOptions(item.month);
+        fillDayOptions(item.month, item.day);
+        renderPickers();
+        showModal();
+      }
+
+      function showModal() {
+        els.modal.classList.add('open');
+        document.body.style.overflow = 'hidden';
+        setTimeout(() => els.eventName.focus(), 60);
+      }
+
+      function closeModal() {
+        els.modal.classList.remove('open');
+        document.body.style.overflow = '';
+        editingId = null;
+      }
+
+      function normalizeOrders(year, month) {
+        state.events
+          .filter(item => item.year === year && item.month === month)
+          .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+          .forEach((item, index) => { item.order = index; });
+      }
+
+      function submitEvent(event) {
+        event.preventDefault();
+        const title = els.eventName.value.trim();
+        const memo = els.eventMemo.value.trim();
+        if (!title) return;
+
+        if (editingId) {
+          const item = state.events.find(entry => entry.id === editingId);
+          if (!item) return;
+          const oldMonth = item.month;
+          item.title = title;
+          item.memo = memo;
+          item.color = selectedColor;
+          item.month = Number(els.editMonth.value);
+          item.day = els.eventDay.value ? Number(els.eventDay.value) : null;
+          item.done = els.eventDone.checked;
+          if (oldMonth !== item.month) {
+            item.order = monthEvents(item.month).length;
+            normalizeOrders(viewYear, oldMonth);
+          }
+          normalizeOrders(viewYear, item.month);
+          saveState();
+          closeModal();
+          render();
+          showToast('予定を更新しました');
+          return;
+        }
+
+        if (selectedMonths.size === 0) {
+          showToast('実施する月を選んでください');
+          return;
+        }
+        const group = uid();
+        [...selectedMonths].sort((a, b) => a - b).forEach(month => {
+          state.events.push({
+            id: uid(), group, year: viewYear, month, day: null,
+            title, color: selectedColor, memo, done: false,
+            order: monthEvents(month).length
+          });
+        });
+        saveState();
+        closeModal();
+        render();
+        showToast(`${selectedMonths.size}か月に予定を登録しました`);
+      }
+
+      function deleteEditingEvent() {
+        const item = state.events.find(entry => entry.id === editingId);
+        if (!item) return;
+        if (!confirm(`「${item.title}」をこの月から削除しますか？`)) return;
+        state.events = state.events.filter(entry => entry.id !== editingId);
+        normalizeOrders(item.year, item.month);
+        saveState();
+        closeModal();
+        render();
+        showToast('予定を削除しました');
+      }
+
+      function showToast(message) {
+        clearTimeout(toastTimer);
+        els.toast.textContent = message;
+        els.toast.classList.add('show');
+        toastTimer = setTimeout(() => els.toast.classList.remove('show'), 1900);
+      }
+
+      function startDrag(event, id) {
+        if (event.button !== undefined && event.button !== 0) return;
+        const item = state.events.find(entry => entry.id === id);
+        const source = document.querySelector(`[data-event-id="${CSS.escape(id)}"]`);
+        if (!item || !source) return;
+        event.preventDefault();
+
+        const rect = source.getBoundingClientRect();
+        const ghost = source.cloneNode(true);
+        ghost.classList.add('drag-ghost');
+        ghost.removeAttribute('tabindex');
+        ghost.querySelector('.drag-handle')?.setAttribute('tabindex', '-1');
+        document.body.appendChild(ghost);
+
+        drag = {
+          id,
+          pointerId: event.pointerId,
+          sourceMonth: item.month,
+          targetMonth: item.month,
+          targetIndex: monthEvents(item.month).findIndex(entry => entry.id === id),
+          ghost,
+          source,
+          offsetX: Math.min(event.clientX - rect.left, rect.width - 18),
+          offsetY: event.clientY - rect.top,
+          moved: false
+        };
+
+        source.classList.add('drag-source');
+        positionGhost(event.clientX, event.clientY);
+        event.currentTarget.setPointerCapture?.(event.pointerId);
+        navigator.vibrate?.(10);
+      }
+
+      function positionGhost(x, y) {
+        if (!drag) return;
+        drag.ghost.style.left = `${Math.max(9, Math.min(innerWidth - drag.ghost.offsetWidth - 9, x - drag.offsetX))}px`;
+        drag.ghost.style.top = `${Math.max(8, Math.min(innerHeight - drag.ghost.offsetHeight - 8, y - drag.offsetY))}px`;
+      }
+
+      function moveDrag(event) {
+        if (!drag || event.pointerId !== drag.pointerId) return;
+        event.preventDefault();
+        drag.moved = true;
+        positionGhost(event.clientX, event.clientY);
+
+        document.querySelectorAll('.month-panel.drop-active').forEach(el => el.classList.remove('drop-active'));
+        document.querySelector('.drop-marker')?.remove();
+
+        const underneath = document.elementFromPoint(event.clientX, event.clientY);
+        const panel = underneath?.closest?.('[data-month-panel]');
+        if (panel) {
+          const month = Number(panel.dataset.monthPanel);
+          const zone = panel.querySelector('.month-dropzone');
+          panel.classList.add('drop-active');
+          drag.targetMonth = month;
+
+          const candidates = [...zone.querySelectorAll('.event-card:not(.drag-source)')];
+          let index = candidates.length;
+          let before = null;
+          for (let i = 0; i < candidates.length; i++) {
+            const rect = candidates[i].getBoundingClientRect();
+            if (event.clientY < rect.top + rect.height / 2) {
+              index = i;
+              before = candidates[i];
+              break;
+            }
+          }
+          drag.targetIndex = index;
+          const marker = document.createElement('div');
+          marker.className = 'drop-marker';
+          if (before) zone.insertBefore(marker, before);
+          else zone.appendChild(marker);
+        }
+
+        const edge = 78;
+        if (event.clientY < edge) window.scrollBy(0, -11);
+        else if (event.clientY > innerHeight - edge) window.scrollBy(0, 11);
+      }
+
+      function endDrag(event) {
+        if (!drag || event.pointerId !== drag.pointerId) return;
+        event.preventDefault();
+        const info = drag;
+        drag = null;
+
+        document.querySelectorAll('.month-panel.drop-active').forEach(el => el.classList.remove('drop-active'));
+        document.querySelector('.drop-marker')?.remove();
+        info.ghost.remove();
+        info.source.classList.remove('drag-source');
+
+        if (!info.moved) return;
+        const item = state.events.find(entry => entry.id === info.id);
+        if (!item) return;
+
+        const oldMonth = item.month;
+        const destination = monthEvents(info.targetMonth).filter(entry => entry.id !== item.id);
+        const insertAt = Math.max(0, Math.min(info.targetIndex, destination.length));
+        item.month = info.targetMonth;
+        destination.splice(insertAt, 0, item);
+        destination.forEach((entry, index) => { entry.order = index; });
+        if (oldMonth !== info.targetMonth) normalizeOrders(viewYear, oldMonth);
+
+        saveState();
+        suppressClickUntil = Date.now() + 350;
+        render();
+        navigator.vibrate?.(15);
+        showToast(oldMonth === info.targetMonth ? '並び順を変更しました' : `${info.targetMonth}月へ移動しました`);
+      }
+
+      document.addEventListener('pointermove', moveDrag, { passive: false });
+      document.addEventListener('pointerup', endDrag, { passive: false });
+      document.addEventListener('pointercancel', endDrag, { passive: false });
+
+      document.addEventListener('pointerdown', event => {
+        const handle = event.target.closest('[data-drag-id]');
+        if (handle) startDrag(event, handle.dataset.dragId);
+      });
+
+      document.addEventListener('click', event => {
+        const jump = event.target.closest('[data-jump]');
+        if (jump) document.getElementById(`month-${jump.dataset.jump}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+        const monthAdd = event.target.closest('[data-add-month]');
+        if (monthAdd) openAdd(Number(monthAdd.dataset.addMonth));
+
+        const picker = event.target.closest('[data-pick-month]');
+        if (picker) {
+          const month = Number(picker.dataset.pickMonth);
+          selectedMonths.has(month) ? selectedMonths.delete(month) : selectedMonths.add(month);
+          renderPickers();
+        }
+
+        const color = event.target.closest('[data-color]');
+        if (color) {
+          selectedColor = color.dataset.color;
+          renderPickers();
+        }
+
+        const card = event.target.closest('[data-event-id]');
+        if (card && !event.target.closest('[data-drag-id]')) openEdit(card.dataset.eventId);
+      });
+
+      document.addEventListener('keydown', event => {
+        if ((event.key === 'Enter' || event.key === ' ') && event.target.matches('[data-event-id]')) {
+          event.preventDefault();
+          openEdit(event.target.dataset.eventId);
+        }
+        if (event.key === 'Escape' && els.modal.classList.contains('open')) closeModal();
+      });
+
+      document.getElementById('headerAdd').addEventListener('click', () => openAdd());
+      document.getElementById('floatingAdd').addEventListener('click', () => openAdd());
+      document.getElementById('closeModal').addEventListener('click', closeModal);
+      els.modal.addEventListener('click', event => { if (event.target === els.modal) closeModal(); });
+      els.form.addEventListener('submit', submitEvent);
+      els.deleteButton.addEventListener('click', deleteEditingEvent);
+      els.editMonth.addEventListener('change', () => fillDayOptions(Number(els.editMonth.value), Number(els.eventDay.value)));
+
+      document.getElementById('prevYear').addEventListener('click', () => {
+        viewYear -= 1;
+        saveState();
+        render();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+
+      document.getElementById('nextYear').addEventListener('click', () => {
+        viewYear += 1;
+        saveState();
+        render();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+
+      render();
+    })();
+  </script>
+</body>
+</html>
